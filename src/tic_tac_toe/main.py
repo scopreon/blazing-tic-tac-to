@@ -1,6 +1,8 @@
 from ._bindings import Board, GameState, Location, Piece
 from typing import Generator
 
+INFINITY = 99999999
+
 
 def get_open_positions(board: Board) -> Generator[Location]:
     for i, row in enumerate(board.board()):
@@ -9,7 +11,7 @@ def get_open_positions(board: Board) -> Generator[Location]:
                 yield Location(i, j)
 
 
-def minmax(board: Board, maximising: bool) -> int:
+def minmax(board: Board, alpha: int, beta: int, maximising: bool) -> int:
     if (state := board.state()) != GameState.e_InPlay:
         match state:
             case GameState.e_OWon:
@@ -20,18 +22,24 @@ def minmax(board: Board, maximising: bool) -> int:
                 return 0
 
     if maximising:
-        m = -99999999
+        m = -INFINITY
         for location in get_open_positions(board):
             board.moveO(location)
-            m = max(m, minmax(board, False))
+            m = max(m, minmax(board, alpha, beta, False))
             board.clear(location)
+            alpha = max(alpha, m)
+            if beta <= alpha:
+                break
         return m
     else:
-        m = 99999999
+        m = INFINITY
         for location in get_open_positions(board):
             board.moveX(location)
-            m = min(m, minmax(board, True))
+            m = min(m, minmax(board, alpha, beta, True))
             board.clear(location)
+            beta = min(m, beta)
+            if beta <= alpha:
+                break
         return m
 
 
@@ -39,10 +47,9 @@ def get_best_move(board: Board) -> Location:
     move_and_score: list[tuple[int, Location]] = []
     for location in get_open_positions(board):
         board.moveO(location)
-        move_and_score.append((minmax(board, False), location))
+        move_and_score.append((minmax(board, -INFINITY, INFINITY, False), location))
         board.clear(location)
 
-    print(move_and_score)
     return sorted(move_and_score, key=lambda x: x[0])[-1][1]
 
 
@@ -60,8 +67,10 @@ def main() -> None:
             case Piece.e_X:
                 move = tuple(map(int, input("Turn: ").split(" ")))
                 board.moveX(Location(*move))
+
         for row in board.board():
             print("".join(map(lambda x: "-" if x is None else x.name[2:], row)))
+
         turn = Piece.e_O if turn == Piece.e_X else Piece.e_X
 
     state = board.state()
